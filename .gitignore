@@ -1,0 +1,33 @@
+# Data (not licensed for redistribution — obtain from original sources)
+gkx_full/
+welch_goyal_2024.xlsx
+fama_french_factors.xlsx
+GKX_20201231.csv
+
+# Paper PDFs (copyright)
+*.pdf
+
+# Training outputs
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
