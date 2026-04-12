@@ -6,9 +6,9 @@
 
 **Experiment**: Cross-Sectional Transformer — all stocks attend to each other within each month
 
-**Test Period**: 2016-2019 (4 years of out-of-sample evaluation)
+**Test Period**: 2012-2019 (8 years of out-of-sample evaluation)
 
-**Date**: 2026-04-11
+**Date**: 2026-04-12
 
 ---
 
@@ -242,18 +242,82 @@ Identical to FFN. See `MSE_ind_1yr_report.md` for full metric definitions.
 
 ---
 
-## 8. Results: Transformer (2016-2019)
+## 8. Results: Transformer (2012-2019)
 
 ### 8.1 Year-by-Year Performance
 
 | Year | OOS R² (%) | Mean IC | L/S %/mo | Sharpe | Avg Epochs |
 |------|-----------|---------|----------|--------|------------|
+| 2012 | +0.462 | +0.017 | +2.17 | +3.33 | 66.6 |
+| 2013 | -0.160 | +0.037 | +1.88 | +4.13 | 62.0 |
+| 2014 | -2.994 | -0.044 | +0.80 | +1.09 | 62.6 |
+| 2015 | +0.129 | +0.063 | +1.99 | +1.52 | 74.2 |
 | 2016 | +0.600 | +0.015 | +0.64 | +0.58 | 56.9 |
 | 2017 | +0.677 | +0.026 | +1.66 | +3.07 | 59.7 |
 | 2018 | -0.070 | +0.012 | +1.18 | +1.04 | 62.9 |
 | 2019 | +0.688 | +0.038 | +1.93 | +2.55 | 97.2 |
 
 ### 8.2 Per-Seed Detail
+
+**2012** (avg epoch 66.6):
+
+| Seed | Best Epoch | Val IC | Training Time |
+|------|-----------|--------|---------------|
+| 0 | 74 | +0.055 | 1018s |
+| 1 | 86 | +0.022 | 1141s |
+| 2 | 66 | -0.018 | 936s |
+| 3 | 67 | +0.026 | 946s |
+| 4 | 85 | +0.002 | 1131s |
+| 5 | 69 | +0.059 | 966s |
+| 6 | 49 | +0.007 | 761s |
+| 7 | 45 | +0.026 | 720s |
+| 8 | 80 | +0.027 | 1080s |
+| 9 | 45 | -0.016 | 720s |
+
+**2013** (avg epoch 62.0):
+
+| Seed | Best Epoch | Val IC | Training Time |
+|------|-----------|--------|---------------|
+| 0 | 86 | +0.030 | 1165s |
+| 1 | 42 | +0.018 | 704s |
+| 2 | 59 | +0.030 | 883s |
+| 3 | 47 | +0.028 | 757s |
+| 4 | 76 | +0.001 | 1061s |
+| 5 | 87 | +0.016 | 1177s |
+| 6 | 45 | +0.003 | 736s |
+| 7 | 77 | +0.028 | 1071s |
+| 8 | 63 | +0.018 | 925s |
+| 9 | 38 | -0.010 | 662s |
+
+**2014** (avg epoch 62.6):
+
+| Seed | Best Epoch | Val IC | Training Time |
+|------|-----------|--------|---------------|
+| 0 | 82 | +0.028 | 1147s |
+| 1 | 64 | +0.001 | 954s |
+| 2 | 56 | +0.027 | 868s |
+| 3 | 52 | +0.019 | 825s |
+| 4 | 76 | +0.023 | 1082s |
+| 5 | 84 | +0.019 | 1168s |
+| 6 | 51 | +0.005 | 814s |
+| 7 | 84 | +0.013 | 1168s |
+| 8 | 37 | +0.010 | 664s |
+| 9 | 40 | +0.041 | 697s |
+
+**2015** (avg epoch 74.2):
+
+| Seed | Best Epoch | Val IC | Training Time |
+|------|-----------|--------|---------------|
+| 0 | 101 | +0.020 | 1376s |
+| 1 | 41 | +0.015 | 721s |
+| 2 | 53 | +0.022 | 853s |
+| 3 | 64 | +0.006 | 973s |
+| 4 | 179 | -0.013 | 2230s |
+| 5 | 54 | +0.030 | 863s |
+| 6 | 43 | +0.027 | 743s |
+| 7 | 103 | +0.017 | 1398s |
+| 8 | 70 | +0.026 | 1038s |
+| 9 | 34 | +0.043 | 645s |
 
 **2016** (avg epoch 56.9):
 
@@ -319,40 +383,50 @@ Identical to FFN. See `MSE_ind_1yr_report.md` for full metric definitions.
 
 | Metric | Value |
 |--------|-------|
-| **Average OOS R²** | +0.47% |
-| **Average IC** | +0.023 |
-| **Average L/S Return** | +1.35%/mo |
-| **Average Annualized Sharpe** | +1.81 |
-| **Positive Sharpe years** | 4 / 4 (100%) |
+| **Average OOS R²** | -0.08% |
+| **Average IC** | +0.021 |
+| **Average L/S Return** | +1.53%/mo |
+| **Average Annualized Sharpe** | +2.16 |
+| **Positive Sharpe years** | 8 / 8 (100%) |
 | **Worst year** | 2016 (Sharpe = +0.58) |
-| **Best year** | 2017 (Sharpe = +3.07) |
+| **Best year** | 2013 (Sharpe = +4.13) |
 
 ---
 
 ## 9. Comparison: Transformer vs FFN (MSE_ind_1yr)
 
-### 9.1 Head-to-Head (2016-2019)
+### 9.1 Head-to-Head (2012-2019)
 
 | Year | Model | OOS R² (%) | Mean IC | L/S %/mo | Sharpe | Winner |
 |------|-------|-----------|---------|----------|--------|--------|
+| 2012 | TF | +0.462 | +0.017 | **+2.17** | **+3.33** | **TF** |
+| 2012 | FFN | **+0.796** | **+0.031** | +0.94 | +1.94 | |
+| 2013 | TF | -0.160 | +0.037 | +1.88 | **+4.13** | **TF** |
+| 2013 | FFN | **+1.772** | **+0.052** | **+2.19** | +3.96 | |
+| 2014 | TF | -2.994 | -0.044 | **+0.80** | **+1.09** | **TF** |
+| 2014 | FFN | **-1.549** | **-0.018** | +0.26 | +0.25 | |
+| 2015 | TF | +0.129 | **+0.063** | **+1.99** | +1.52 | |
+| 2015 | FFN | **-0.168** | +0.045 | +1.79 | **+1.93** | **FFN** |
 | 2016 | TF | **+0.600** | +0.015 | +0.64 | **+0.58** | **TF** |
-| 2016 | FFN | -1.486 | +0.026 | +0.60 | +0.44 | |
+| 2016 | FFN | -1.486 | **+0.026** | +0.60 | +0.44 | |
 | 2017 | TF | +0.677 | **+0.026** | **+1.66** | **+3.07** | **TF** |
-| 2017 | FFN | +0.701 | -0.003 | +0.72 | +2.44 | |
+| 2017 | FFN | **+0.701** | -0.003 | +0.72 | +2.44 | |
 | 2018 | TF | -0.070 | +0.012 | +1.18 | +1.04 | |
 | 2018 | FFN | **+0.066** | **+0.044** | **+1.69** | **+2.32** | **FFN** |
 | 2019 | TF | **+0.688** | **+0.038** | **+1.93** | **+2.55** | **TF** |
 | 2019 | FFN | -4.021 | -0.018 | -0.30 | -0.21 | |
 
-### 9.2 Average Comparison
+### 9.2 Average Comparison (8 years)
 
 | Metric | Transformer | FFN (NN5) | Improvement |
 |--------|------------|-----------|-------------|
-| **Avg OOS R²** | +0.47% | -1.18% | +1.65 pp |
-| **Avg IC** | +0.023 | +0.012 | +0.011 |
-| **Avg L/S Return** | +1.35%/mo | +0.68%/mo | +0.67 pp |
-| **Avg Sharpe** | +1.81 | +1.25 | +0.56 |
-| **Positive Sharpe years** | 4/4 (100%) | 3/4 (75%) | |
+| **Avg OOS R²** | -0.08% | -0.55% | +0.47 pp |
+| **Avg IC** | +0.021 | +0.014 | +0.007 |
+| **Avg L/S Return** | +1.53%/mo | +0.91%/mo | +0.62 pp |
+| **Avg Sharpe** | +2.16 | +1.63 | +0.53 |
+| **Sharpe Std** | 1.30 | 1.37 | Lower variance |
+| **Positive Sharpe years** | 8/8 (100%) | 7/8 (88%) | |
+| **Sharpe winner** | 6/8 years | 2/8 years | |
 
 ### 9.3 Architecture Comparison
 
@@ -372,11 +446,12 @@ Identical to FFN. See `MSE_ind_1yr_report.md` for full metric definitions.
 
 ### 9.4 Key Takeaways
 
-1. **Transformer wins 3 out of 4 years** on Sharpe ratio.
-2. **2019 is the most dramatic difference**: FFN collapsed (Sharpe -0.21) while Transformer thrived (Sharpe +2.55).
-3. **Transformer achieves this with fewer parameters and no hand-crafted interactions**, suggesting the attention mechanism is learning useful cross-stock patterns.
-4. **R² is consistently positive** for the Transformer (3/4 years), while the FFN is negative in 2/4 years.
-5. **Caveat**: Only 4 years of test data is insufficient for definitive conclusions. The Transformer has not been tested on crisis periods (e.g., 2008).
+1. **Transformer wins 6 out of 8 years** on Sharpe ratio, losing only 2015 and 2018.
+2. **100% positive Sharpe** across all 8 years — the FFN posted a negative year (2019: -0.21).
+3. **2019 is the most dramatic difference**: FFN collapsed (Sharpe -0.21) while Transformer thrived (+2.55).
+4. **Higher average L/S returns** (+1.53%/mo vs +0.91%/mo) with lower Sharpe variance (std 1.30 vs 1.37).
+5. **Transformer achieves this with fewer parameters and no hand-crafted interactions**, suggesting the attention mechanism learns useful cross-stock patterns that hand-crafted signal x macro interactions miss.
+6. **FFN wins on R² and IC more often**, but the Transformer wins on what matters for portfolio construction: L/S Sharpe.
 
 ---
 
@@ -422,16 +497,16 @@ welch_goyal_2024.xlsx
 
 ### 10.4 Running
 
-Default config runs 2016-2019:
+Edit `TransformerConfig` in `train_transformer.py` to set test years:
+
+```python
+test_years: List[int] = field(default_factory=lambda: [2012, 2013, 2014, 2015])
+```
+
+Then run:
 
 ```bash
 python train_transformer.py
-```
-
-To change test years, edit `TransformerConfig` in `train_transformer.py`:
-
-```python
-test_years: List[int] = field(default_factory=lambda: [2016, 2017, 2018, 2019])
 ```
 
 ### 10.5 Output
@@ -451,7 +526,8 @@ Note: The current implementation does not save model checkpoints or per-seed pre
 | Data loading + panel build | ~2 min |
 | Per seed training | ~10-20 min (varies by early stop epoch) |
 | Per year (10 seeds) | ~2-3 hours |
-| 4 years total | **~10-12 hours** |
+| 4 years (one run) | **~10-12 hours** |
+| 8 years (two runs) | **~20-24 hours** |
 
 Tested on RTX 4080 SUPER with CUDA, mixed precision enabled.
 

@@ -9,21 +9,21 @@ Machine learning models for cross-sectional stock return prediction. Replicates 
 | **NN5 (FFN)** | ~30K | 937 (95 signals + 8 macro + 760 hand-crafted interactions + 74 industry dummies) | Replication of GKX (2020) NN5 architecture |
 | **Cross-Sectional Transformer** | ~14K | 169 per stock + 8 macro (no hand-crafted interactions) | Self-attention across all stocks in a month |
 
-## Results (2016-2019 out-of-sample)
+## Results (2012-2019 out-of-sample)
 
-| Model | Avg OOS R² | Avg IC | Avg Sharpe | Positive years |
-|-------|-----------|--------|------------|----------------|
-| NN5 (FFN) | -1.18% | +0.012 | +1.25 | 3/4 |
-| Transformer | **+0.47%** | **+0.023** | **+1.81** | **4/4** |
+| Model | Avg OOS R² | Avg IC | Avg L/S %/mo | Avg Sharpe | Positive years |
+|-------|-----------|--------|-------------|------------|----------------|
+| NN5 (FFN) | -0.55% | +0.014 | +0.91% | +1.63 | 7/8 |
+| Transformer | **-0.08%** | **+0.021** | **+1.53%** | **+2.16** | **8/8** |
 
-The Transformer wins on every average metric despite having **half the parameters** and **no hand-crafted interaction features**.
+The Transformer wins on every average metric despite having **half the parameters** and **no hand-crafted interaction features**. It wins 6 out of 8 years on Sharpe, with **zero negative Sharpe years** across the full 8-year test period.
 
 Full 19-year results (2001-2019) for the FFN are in `MSE_ind_1yr_report.md` (average Sharpe +1.07).
 
 ## Reports
 
 - **`MSE_ind_1yr_report.md`** — Full replication report for the NN5 FFN (2001-2019)
-- **`Transformer_report.md`** — Cross-sectional Transformer report (2016-2019) with head-to-head comparison
+- **`Transformer_report.md`** — Cross-sectional Transformer report (2012-2019) with head-to-head comparison
 
 ## Code
 
