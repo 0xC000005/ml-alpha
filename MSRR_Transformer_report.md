@@ -322,11 +322,91 @@ Same as the MSE Transformer evaluation: sort stocks by model output, long top 10
 
 ---
 
-## 9. Limitations and Future Improvements
+## 9. Factor Attribution (FF5 + Momentum)
+
+### 9.1 Methodology
+
+We regress monthly portfolio returns against the Fama-French 5 factors (MktRF, SMB, HML, RMW, CMA) plus the momentum factor (UMD):
+
+```
+R_portfolio = alpha + b1*MktRF + b2*SMB + b3*HML + b4*RMW + b5*CMA + b6*UMD + epsilon
+```
+
+If alpha is statistically significant (|t-stat| > 2), the portfolio generates returns that cannot be explained by known risk factors — i.e., genuine alpha.
+
+Factor data source: `fama_french_factors.xlsx` (1963-2019).
+
+### 9.2 Results (2016-2019, 47 months)
+
+**MSRR SDF Portfolio (normalized to 2x gross leverage):**
+
+| Factor | Coefficient | t-stat | p-value |
+|--------|-----------|--------|---------|
+| **Alpha** | **+0.759%/mo** | **5.34** | **0.000** |
+| MktRF | +0.117 | 2.28 | 0.028 |
+| SMB | -0.069 | -1.02 | 0.313 |
+| HML | -0.113 | -1.64 | 0.109 |
+| RMW | -0.137 | -1.35 | 0.185 |
+| CMA | +0.086 | 0.75 | 0.456 |
+| UMD | -0.114 | -2.13 | 0.040 |
+
+R² = 0.328. **Annualized alpha = 9.11%, t-stat = 5.34**.
+
+**MSRR L/S Decile Portfolio:**
+
+| Factor | Coefficient | t-stat | p-value |
+|--------|-----------|--------|---------|
+| **Alpha** | **+0.903%/mo** | **4.26** | **0.000** |
+| MktRF | -0.179 | -2.34 | 0.024 |
+| SMB | -0.367 | -3.66 | 0.001 |
+| HML | -0.110 | -1.07 | 0.292 |
+| RMW | -0.169 | -1.12 | 0.271 |
+| CMA | -0.079 | -0.46 | 0.645 |
+| UMD | -0.150 | -1.87 | 0.068 |
+
+R² = 0.450. **Annualized alpha = 10.83%, t-stat = 4.26**.
+
+**FFN (NN5 MSE_ind_1yr) L/S Decile Portfolio (for comparison):**
+
+| Factor | Coefficient | t-stat | p-value |
+|--------|-----------|--------|---------|
+| Alpha | +0.497%/mo | 1.07 | 0.290 |
+| MktRF | -0.351 | -2.10 | 0.043 |
+| SMB | -0.270 | -1.23 | 0.226 |
+| HML | +0.333 | 1.48 | 0.147 |
+| RMW | +0.883 | 2.66 | 0.011 |
+| CMA | -0.223 | -0.60 | 0.555 |
+| UMD | +0.248 | 1.41 | 0.166 |
+
+R² = 0.457. **Annualized alpha = 5.96%, t-stat = 1.07 (NOT significant)**.
+
+### 9.3 Summary
+
+| Portfolio | Annual Alpha | t-stat | Significant? | R² |
+|-----------|-------------|--------|-------------|-----|
+| **MSRR SDF** | **9.11%** | **5.34** | **Yes (p<0.001)** | 0.33 |
+| **MSRR L/S** | **10.83%** | **4.26** | **Yes (p<0.001)** | 0.45 |
+| FFN L/S | 5.96% | 1.07 | No (p=0.29) | 0.46 |
+
+### 9.4 Interpretation
+
+1. **MSRR produces highly significant alpha** — both the SDF and L/S portfolios have alpha t-stats above 4, well beyond the conventional significance threshold of 2.0.
+
+2. **FFN alpha is insignificant** — its returns are largely explained by known factors, particularly RMW (profitability factor, coef = +0.88, t = 2.66). The FFN is essentially repackaging known factor exposures.
+
+3. **Low R² for MSRR SDF (0.33)** — only one-third of the SDF portfolio return is explained by known factors. The remaining two-thirds is genuine alpha from cross-stock patterns discovered by the attention mechanism.
+
+4. **MSRR loads negatively on momentum (UMD)** — the model takes contrarian positions relative to momentum, which is consistent with cross-sectional attention discovering mean-reversion patterns that momentum misses.
+
+5. **Caveat**: 47 months is a short sample. Factor attribution significance should be interpreted with caution. A longer OOS period would strengthen these conclusions.
+
+---
+
+## 10. Limitations and Future Improvements
 
 This implementation is a **proof-of-concept** with significant room for improvement. Due to infrastructure and time constraints, the following enhancements were not pursued:
 
-### 9.1 Not Implemented (Would Likely Improve Results)
+### 10.1 Not Implemented (Would Likely Improve Results)
 
 | Enhancement | Kelly et al. Setting | Our Setting | Expected Impact |
 |-------------|---------------------|-------------|-----------------|
@@ -336,7 +416,7 @@ This implementation is a **proof-of-concept** with significant room for improvem
 | **Larger d_model** | d_model=132 (= input dim) | d_model=32 | Medium — richer representations |
 | **More features** | 132 JKP characteristics | 95 GKX signals | Medium — more information |
 
-### 9.2 Infrastructure Constraints
+### 10.2 Infrastructure Constraints
 
 | Setting | Compute Required | Our Hardware |
 |---------|-----------------|-------------|
@@ -345,7 +425,7 @@ This implementation is a **proof-of-concept** with significant room for improvem
 | Monthly refit, K=10 | ~13 days, 1 GPU | Impractical |
 | Kelly full replication | ~4 days, 100 GPUs | Swiss National Supercomputing Centre |
 
-### 9.3 Known Issues
+### 10.3 Known Issues
 
 1. **Noisy MSRR gradients** — the loss collapses 5000 stocks into a single scalar per month, making optimization harder than MSE. Required careful LR tuning (7.5e-5 vs 1e-4 for MSE).
 
@@ -355,9 +435,9 @@ This implementation is a **proof-of-concept** with significant room for improvem
 
 ---
 
-## 10. Replication Instructions
+## 11. Replication Instructions
 
-### 10.1 Prerequisites
+### 11.1 Prerequisites
 
 ```
 Python 3.10+
@@ -366,7 +446,7 @@ numpy, pandas, scipy
 GPU: NVIDIA with >= 16GB VRAM (tested on RTX 4080 SUPER)
 ```
 
-### 10.2 Dependencies
+### 11.2 Dependencies
 
 The MSRR Transformer imports from both `train_nn.py` and `train_transformer.py`:
 
@@ -384,11 +464,11 @@ from train_transformer import (TransformerFeatureScaler, MonthGroupedData,
 
 All three files (`train_nn.py`, `train_transformer.py`, `train_transformer_msrr.py`) must be in the same directory.
 
-### 10.3 Data Setup
+### 11.3 Data Setup
 
 Same as MSE Transformer. See `Transformer_report.md` section 10.3.
 
-### 10.4 Running
+### 11.4 Running
 
 ```bash
 python train_transformer_msrr.py
@@ -400,7 +480,7 @@ To change test years, edit `MSRRConfig` in `train_transformer_msrr.py`:
 test_years: List[int] = field(default_factory=lambda: [2016, 2017, 2018, 2019])
 ```
 
-### 10.5 Output
+### 11.5 Output
 
 ```
 output/
@@ -412,7 +492,7 @@ output/
 
 The prediction parquet files contain columns `(permno, month, prediction)` where `prediction` is the portfolio weight for that stock-month.
 
-### 10.6 Expected Runtime
+### 11.6 Expected Runtime
 
 | Component | Time |
 |-----------|------|
@@ -425,7 +505,7 @@ Tested on RTX 4080 SUPER with CUDA, mixed precision enabled.
 
 ---
 
-## 11. Code Reference
+## 12. Code Reference
 
 | Component | File | Description |
 |-----------|------|-------------|

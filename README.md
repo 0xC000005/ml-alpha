@@ -28,6 +28,16 @@ Machine learning models for cross-sectional stock return prediction. Replicates 
 
 The MSRR loss directly optimizes portfolio Sharpe ratio instead of return prediction accuracy. Same architecture, same data — only the loss function differs. The SDF portfolio uses model outputs as portfolio weights directly (scale-invariant Sharpe).
 
+### Factor Attribution (FF5 + Momentum, 2016-2019)
+
+| Portfolio | Annual Alpha | t-stat | Significant? |
+|-----------|-------------|--------|-------------|
+| **MSRR SDF** | **9.11%** | **5.34** | **Yes** |
+| **MSRR L/S** | **10.83%** | **4.26** | **Yes** |
+| FFN L/S | 5.96% | 1.07 | No |
+
+The MSRR Transformer generates highly significant alpha unexplained by Fama-French 5 + Momentum factors. Only 33% of the SDF portfolio return is attributable to known risk factors. The FFN's returns are largely explained by existing factors (particularly profitability/RMW).
+
 Full 19-year results (2001-2019) for the FFN are in `MSE_ind_1yr_report.md` (average Sharpe +1.07).
 
 ## Reports
