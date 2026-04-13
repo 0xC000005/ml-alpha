@@ -1,22 +1,32 @@
 # ml-alpha
 
-Machine learning models for cross-sectional stock return prediction. Replicates and extends the feedforward neural network benchmark from Gu, Kelly, and Xiu (2020), and introduces a cross-sectional Transformer that learns stock-stock interactions via self-attention.
+Machine learning models for cross-sectional stock return prediction. Replicates and extends the feedforward neural network benchmark from Gu, Kelly, and Xiu (2020), and introduces a cross-sectional Transformer that learns stock-stock interactions via self-attention. Also experiments with the MSRR loss function from Kelly et al. (2025) that directly optimizes portfolio Sharpe ratio.
 
 ## Models
 
-| Model | Parameters | Features | Notes |
-|-------|-----------|----------|-------|
-| **NN5 (FFN)** | ~30K | 937 (95 signals + 8 macro + 760 hand-crafted interactions + 74 industry dummies) | Replication of GKX (2020) NN5 architecture |
-| **Cross-Sectional Transformer** | ~14K | 169 per stock + 8 macro (no hand-crafted interactions) | Self-attention across all stocks in a month |
+| Model | Parameters | Features | Loss | Notes |
+|-------|-----------|----------|------|-------|
+| **NN5 (FFN)** | ~30K | 937 (95 signals + 8 macro + 760 interactions + 74 dummies) | MSE | Replication of GKX (2020) |
+| **Cross-Sectional Transformer** | ~14K | 169 per stock + 8 macro | MSE | Self-attention across stocks |
+| **MSRR Transformer** | ~14K | 169 per stock + 8 macro | MSRR | Same architecture, portfolio-optimized loss |
 
-## Results (2012-2019 out-of-sample)
+## Results
+
+### MSE Models (2012-2019, L/S decile Sharpe)
 
 | Model | Avg OOS R² | Avg IC | Avg L/S %/mo | Avg Sharpe | Positive years |
 |-------|-----------|--------|-------------|------------|----------------|
 | NN5 (FFN) | -0.55% | +0.014 | +0.91% | +1.63 | 7/8 |
-| Transformer | **-0.08%** | **+0.021** | **+1.53%** | **+2.16** | **8/8** |
+| Transformer (MSE) | **-0.08%** | **+0.021** | **+1.53%** | **+2.16** | **8/8** |
 
-The Transformer wins on every average metric despite having **half the parameters** and **no hand-crafted interaction features**. It wins 6 out of 8 years on Sharpe, with **zero negative Sharpe years** across the full 8-year test period.
+### MSE vs MSRR Transformer (2016-2019)
+
+| Model | Portfolio | Avg Sharpe | Best Year | Worst Year |
+|-------|-----------|------------|-----------|------------|
+| Transformer (MSE) | L/S decile sort | +1.81 | 2017 (+3.07) | 2016 (+0.58) |
+| Transformer (MSRR) | SDF (direct weights) | **+2.05** | 2016 (+3.03) | 2018 (+0.82) |
+
+The MSRR loss directly optimizes portfolio Sharpe ratio instead of return prediction accuracy. Same architecture, same data — only the loss function differs. The SDF portfolio uses model outputs as portfolio weights directly (scale-invariant Sharpe).
 
 Full 19-year results (2001-2019) for the FFN are in `MSE_ind_1yr_report.md` (average Sharpe +1.07).
 
@@ -24,11 +34,13 @@ Full 19-year results (2001-2019) for the FFN are in `MSE_ind_1yr_report.md` (ave
 
 - **`MSE_ind_1yr_report.md`** — Full replication report for the NN5 FFN (2001-2019)
 - **`Transformer_report.md`** — Cross-sectional Transformer report (2012-2019) with head-to-head comparison
+- **`MSRR_Transformer_report.md`** — MSRR loss experiment (2016-2019), proof-of-concept
 
 ## Code
 
 - **`train_nn.py`** — Data pipeline, FFN training, 8-experiment grid configurations
-- **`train_transformer.py`** — Cross-sectional Transformer, reuses data pipeline from `train_nn.py`
+- **`train_transformer.py`** — Cross-sectional Transformer with MSE loss
+- **`train_transformer_msrr.py`** — Cross-sectional Transformer with MSRR loss (Kelly et al. 2025)
 
 ## Data (Not Included)
 
@@ -57,11 +69,14 @@ NVIDIA GPU with ≥16GB VRAM (tested on RTX 4080 SUPER)
 # FFN (NN5), MSE_ind_1yr configuration
 python train_nn.py
 
-# Cross-sectional Transformer
+# Cross-sectional Transformer (MSE loss)
 python train_transformer.py
+
+# Cross-sectional Transformer (MSRR loss)
+python train_transformer_msrr.py
 ```
 
-Edit `Config` / `TransformerConfig` at the top of each file to change test years, hyperparameters, etc.
+Edit `Config` / `TransformerConfig` / `MSRRConfig` at the top of each file to change test years, hyperparameters, etc.
 
 ## Citation
 
@@ -69,7 +84,9 @@ This work builds on:
 
 > Gu, S., Kelly, B., & Xiu, D. (2020). **Empirical Asset Pricing via Machine Learning**. *The Review of Financial Studies*, 33(5), 2223-2273. https://doi.org/10.1093/rfs/hhaa009
 
-If you use this code, please cite the original GKX paper.
+> Kelly, B.T., Kuznetsov, B., Malamud, S., & Xu, T.A. (2025). **Artificial Intelligence Asset Pricing Models**. NBER Working Paper 33351.
+
+If you use this code, please cite the original papers.
 
 ## Disclaimer
 

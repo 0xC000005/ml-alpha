@@ -1,10 +1,17 @@
 """
-Cross-Sectional Transformer for Asset Pricing.
+Cross-Sectional Transformer with MSRR Loss for Asset Pricing.
 
-Processes all stocks within each month via self-attention, letting
-the model learn stock-stock interactions instead of hand-crafting them.
+Same architecture as train_transformer.py, but instead of predicting returns
+with MSE loss, the model outputs portfolio weights and is trained with
+Maximum Sharpe Ratio Regression (MSRR) loss:
 
-Imports data pipeline from train_nn.py.
+    L = E[(1 - w(X_t)' R_{t+1})²]
+
+This directly optimizes the stochastic discount factor (SDF), which is
+equivalent to finding the mean-variance efficient portfolio.
+
+Reference: Kelly, Kuznetsov, Malamud, Xu (2025) "Artificial Intelligence
+Asset Pricing Models", NBER Working Paper 33351.
 """
 
 import os
@@ -36,20 +43,27 @@ from train_nn import (
     set_seed,
 )
 
+from train_transformer import (
+    TransformerFeatureScaler,
+    MonthGroupedData,
+    CrossSectionalTransformer,
+    evaluate,
+)
+
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 @dataclass
-class TransformerConfig:
-    # Data (reuse paths from Config)
+class MSRRConfig:
+    # Data
     data_dir: str = "gkx_full"
     macro_file: str = "welch_goyal_2024.xlsx"
     sector_file: str = "gkx_full/sector_mapping.csv"
     output_dir: str = "output"
 
-    # Architecture
+    # Architecture (same as MSE transformer)
     d_model: int = 32
     n_heads: int = 4
     n_layers: int = 1
@@ -62,8 +76,9 @@ class TransformerConfig:
     n_industries: int = 74
 
     # Training
-    lr: float = 1e-4
-    weight_decay: float = 1e-4
+    lr: float = 7.5e-5
+    weight_decay: float = 0.0   # no decay on Transformer body
+    ridge_lambda: float = 1e-3  # ridge penalty on output head only (Kelly et al. approach)
     grad_accum_steps: int = 4
     max_grad_norm: float = 1.0
     max_epochs: int = 300
@@ -75,182 +90,41 @@ class TransformerConfig:
     # Time periods
     train_start: int = 1975
     val_years: int = 1
-    test_years: List[int] = field(default_factory=lambda: [2012, 2013, 2014, 2015])
+    test_years: List[int] = field(default_factory=lambda: [2016, 2017, 2018, 2019])
 
-    # Signal/macro names (reuse from Config)
+    # Signal/macro names
     signal_names: List[str] = field(default_factory=lambda: Config().signal_names)
     macro_names: List[str] = field(default_factory=lambda: Config().macro_names)
 
 
 # ---------------------------------------------------------------------------
-# Feature Scaling (no interactions)
+# MSRR Loss
 # ---------------------------------------------------------------------------
 
-class TransformerFeatureScaler:
-    """Scale stock/macro features separately. No interaction computation."""
+def msrr_loss_month(weights: torch.Tensor, returns: torch.Tensor) -> torch.Tensor:
+    """MSRR loss for a single month.
 
-    def __init__(self, clip_std: float = 5.0):
-        self.clip_std = clip_std
-        self._inner = FeatureScaler(clip_std=clip_std)
+    Args:
+        weights: (N,) portfolio weights from model
+        returns: (N,) excess returns for that month
 
-    def fit(self, stock_features: np.ndarray, macro_features: np.ndarray):
-        self._inner.fit(stock_features, macro_features)
-        return self
-
-    def transform(self, stock_features: np.ndarray,
-                  macro_features: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns (stock_scaled, macro_scaled) separately — no interactions."""
-        stock = (stock_features - self._inner.stock_mean_) / self._inner.stock_std_
-        macro = (macro_features - self._inner.macro_mean_) / self._inner.macro_std_
-        np.nan_to_num(stock, copy=False, nan=0.0)
-        np.nan_to_num(macro, copy=False, nan=0.0)
-        np.clip(stock, -self.clip_std, self.clip_std, out=stock)
-        np.clip(macro, -self.clip_std, self.clip_std, out=macro)
-        return stock.astype(np.float32), macro.astype(np.float32)
-
-
-# ---------------------------------------------------------------------------
-# Month-Grouped Data Container
-# ---------------------------------------------------------------------------
-
-class MonthGroupedData:
-    """Organizes panel data into per-month groups for Transformer batching.
-
-    Stores data on CPU as numpy arrays. Transfers one month to GPU per call.
+    Returns:
+        scalar loss: (1 - w'R)²
     """
-
-    def __init__(self, stock_features: np.ndarray, macro_features: np.ndarray,
-                 industry_dummies: np.ndarray, targets: np.ndarray,
-                 month_ids: np.ndarray, permno_ids: np.ndarray):
-        unique_months = np.unique(month_ids)
-        self.months = sorted(unique_months.tolist())
-
-        self.stock_dict: Dict[int, np.ndarray] = {}
-        self.macro_dict: Dict[int, np.ndarray] = {}
-        self.ind_dict: Dict[int, np.ndarray] = {}
-        self.target_dict: Dict[int, np.ndarray] = {}
-        self.permno_dict: Dict[int, np.ndarray] = {}
-
-        for m in self.months:
-            mask = month_ids == m
-            self.stock_dict[m] = stock_features[mask]
-            # Macro is same for all stocks in a month — store just one row
-            self.macro_dict[m] = macro_features[mask][0:1]
-            self.ind_dict[m] = industry_dummies[mask]
-            self.target_dict[m] = targets[mask]
-            self.permno_dict[m] = permno_ids[mask]
-
-    def __len__(self):
-        return len(self.months)
-
-    def get_month(self, month_id: int, device: torch.device):
-        """Transfer one month's data to GPU. Returns unsqueezed batch dim."""
-        stock = torch.from_numpy(self.stock_dict[month_id]).unsqueeze(0).to(device)
-        macro = torch.from_numpy(self.macro_dict[month_id]).to(device)  # (1, 8)
-        ind = torch.from_numpy(self.ind_dict[month_id]).unsqueeze(0).to(device)
-        target = torch.from_numpy(self.target_dict[month_id]).to(device)
-        return stock, macro, ind, target
-
-    @property
-    def n_obs(self):
-        return sum(len(self.target_dict[m]) for m in self.months)
-
-
-# ---------------------------------------------------------------------------
-# Model
-# ---------------------------------------------------------------------------
-
-class CrossSectionalTransformer(nn.Module):
-    """Transformer that processes all stocks in a month via self-attention.
-
-    Architecture:
-        stock_proj(169->d_model) + macro_proj(8->d_model)  [additive]
-        -> LayerNorm -> MultiHeadSelfAttention -> residual
-        -> LayerNorm -> FFN(d_model->d_ff->d_model) -> residual
-        -> LayerNorm -> Linear(d_model->1)
-    """
-
-    def __init__(self, n_signals: int = 95, n_industries: int = 74,
-                 n_macro: int = 8, d_model: int = 32, n_heads: int = 4,
-                 d_ff: int = 64, dropout: float = 0.10):
-        super().__init__()
-        self.stock_proj = nn.Linear(n_signals + n_industries, d_model)
-        self.macro_proj = nn.Linear(n_macro, d_model)
-
-        # Pre-norm Transformer block
-        self.norm1 = nn.LayerNorm(d_model)
-        self.self_attn = nn.MultiheadAttention(
-            embed_dim=d_model, num_heads=n_heads,
-            dropout=dropout, batch_first=True,
-        )
-        self.norm2 = nn.LayerNorm(d_model)
-        self.ffn = nn.Sequential(
-            nn.Linear(d_model, d_ff),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(d_ff, d_model),
-            nn.Dropout(dropout),
-        )
-
-        # Output head
-        self.norm_out = nn.LayerNorm(d_model)
-        self.output_head = nn.Linear(d_model, 1)
-        self.dropout = nn.Dropout(dropout)
-
-        self._init_weights()
-
-    def _init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
-
-    def forward(self, stock_features: torch.Tensor,
-                macro_features: torch.Tensor,
-                industry_dummies: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            stock_features: (1, N, n_signals)
-            macro_features: (1, n_macro)
-            industry_dummies: (1, N, n_industries)
-        Returns:
-            predictions: (N,)
-        """
-        # Concatenate stock signals + industry dummies
-        x = torch.cat([stock_features, industry_dummies], dim=-1)  # (1, N, 169)
-        x = self.stock_proj(x)  # (1, N, d_model)
-
-        # Additive macro conditioning (broadcast across stocks)
-        macro_embed = self.macro_proj(macro_features)  # (1, d_model)
-        x = x + macro_embed.unsqueeze(1)  # (1, N, d_model)
-
-        # Pre-norm self-attention with residual
-        x_norm = self.norm1(x)
-        attn_out, _ = self.self_attn(x_norm, x_norm, x_norm)
-        x = x + self.dropout(attn_out)
-
-        # Pre-norm FFN with residual
-        x_norm = self.norm2(x)
-        x = x + self.ffn(x_norm)
-
-        # Output
-        x = self.norm_out(x)
-        preds = self.output_head(x).squeeze(-1).squeeze(0)  # (N,)
-        return preds
+    port_return = torch.dot(weights, returns)
+    return (1.0 - port_return) ** 2
 
 
 # ---------------------------------------------------------------------------
 # Training
 # ---------------------------------------------------------------------------
 
-def train_one_epoch(model: nn.Module, data: MonthGroupedData,
-                    optimizer: torch.optim.Optimizer,
-                    criterion: nn.Module,
-                    amp_scaler: torch.amp.GradScaler,
-                    config: TransformerConfig,
-                    device: torch.device) -> float:
-    """Train one epoch: iterate over months with gradient accumulation."""
+def train_one_epoch_msrr(model: nn.Module, data: MonthGroupedData,
+                         optimizer: torch.optim.Optimizer,
+                         amp_scaler: torch.amp.GradScaler,
+                         config: MSRRConfig,
+                         device: torch.device) -> float:
+    """Train one epoch with MSRR loss."""
     model.train()
     total_loss = 0.0
     n_months = len(data)
@@ -262,8 +136,8 @@ def train_one_epoch(model: nn.Module, data: MonthGroupedData,
         stock, macro, ind, target = data.get_month(int(month_id), device)
 
         with torch.amp.autocast("cuda"):
-            preds = model(stock, macro, ind)
-            loss = criterion(preds, target) / config.grad_accum_steps
+            weights = model(stock, macro, ind)  # (N,) — portfolio weights
+            loss = msrr_loss_month(weights, target) / config.grad_accum_steps
 
         amp_scaler.scale(loss).backward()
         total_loss += loss.item() * config.grad_accum_steps
@@ -275,7 +149,6 @@ def train_one_epoch(model: nn.Module, data: MonthGroupedData,
             amp_scaler.update()
             optimizer.zero_grad(set_to_none=True)
 
-    # Handle remaining steps
     if n_months % config.grad_accum_steps != 0:
         amp_scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
@@ -287,30 +160,79 @@ def train_one_epoch(model: nn.Module, data: MonthGroupedData,
 
 
 @torch.no_grad()
-def evaluate(model: nn.Module, data: MonthGroupedData,
-             device: torch.device) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Predict all months, return flat arrays."""
+def evaluate_msrr(model: nn.Module, data: MonthGroupedData,
+                  device: torch.device) -> Tuple[float, np.ndarray, np.ndarray,
+                                                   np.ndarray, np.ndarray]:
+    """Evaluate MSRR loss and collect predictions for OOS metrics.
+
+    Returns:
+        avg_msrr_loss: average MSRR loss across months
+        all_preds: flat array of model outputs (weights/scores)
+        all_targets: flat array of actual returns
+        all_months: flat array of month IDs
+        all_permnos: flat array of permno IDs
+    """
     model.eval()
+    total_loss = 0.0
     all_preds, all_targets, all_months, all_permnos = [], [], [], []
 
     for month_id in data.months:
         stock, macro, ind, target = data.get_month(month_id, device)
         with torch.amp.autocast("cuda"):
-            preds = model(stock, macro, ind)
-        all_preds.append(preds.float().cpu().numpy())
+            weights = model(stock, macro, ind)
+
+        loss = msrr_loss_month(weights.float(), target)
+        total_loss += loss.item()
+
+        all_preds.append(weights.float().cpu().numpy())
         all_targets.append(target.cpu().numpy())
         all_months.append(np.full(len(target), month_id, dtype=np.int32))
         all_permnos.append(data.permno_dict[month_id])
 
-    return (np.concatenate(all_preds), np.concatenate(all_targets),
+    avg_loss = total_loss / len(data)
+    return (avg_loss, np.concatenate(all_preds), np.concatenate(all_targets),
             np.concatenate(all_months), np.concatenate(all_permnos))
 
 
-def train_model(train_data: MonthGroupedData, val_data: MonthGroupedData,
-                test_year: int, seed: int,
-                config: TransformerConfig, device: torch.device,
-                logger: logging.Logger) -> Dict:
-    """Full training with early stopping on validation MSE."""
+def compute_sdf_portfolio_metrics(preds: np.ndarray, targets: np.ndarray,
+                                  month_ids: np.ndarray,
+                                  logger: logging.Logger) -> Dict:
+    """Compute SDF portfolio metrics using raw model weights.
+
+    The model outputs are used directly as portfolio weights (not sorted
+    into deciles). The SDF portfolio return each month is w'R.
+    """
+    unique_months = sorted(np.unique(month_ids))
+    monthly_returns = []
+
+    for m in unique_months:
+        mask = month_ids == m
+        w = preds[mask]
+        r = targets[mask]
+        port_ret = np.dot(w, r)
+        monthly_returns.append(port_ret)
+
+    monthly_returns = np.array(monthly_returns)
+    mean_ret = np.mean(monthly_returns)
+    std_ret = np.std(monthly_returns, ddof=1) if len(monthly_returns) > 1 else 1.0
+    sharpe = mean_ret / std_ret * np.sqrt(12) if std_ret > 0 else 0.0
+
+    logger.info(f"    SDF Portfolio: mean={mean_ret:.6f}/mo, "
+                f"std={std_ret:.6f}, Sharpe={sharpe:.2f}")
+
+    return {
+        "sdf_mean_ret": mean_ret,
+        "sdf_std_ret": std_ret,
+        "sdf_sharpe": sharpe,
+        "sdf_monthly_returns": monthly_returns,
+    }
+
+
+def train_model_msrr(train_data: MonthGroupedData, val_data: MonthGroupedData,
+                     test_year: int, seed: int,
+                     config: MSRRConfig, device: torch.device,
+                     logger: logging.Logger) -> Dict:
+    """Full training with early stopping on validation MSRR loss."""
     set_seed(seed)
 
     model = CrossSectionalTransformer(
@@ -320,16 +242,22 @@ def train_model(train_data: MonthGroupedData, val_data: MonthGroupedData,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info(f"  [TF|year{test_year}|seed{seed}] params={n_params:,}, "
+    head_params = sum(p.numel() for p in model.output_head.parameters())
+    logger.info(f"  [MSRR|year{test_year}|seed{seed}] params={n_params:,} "
+                f"(head={head_params:,}), "
                 f"train={train_data.n_obs:,}, val={val_data.n_obs:,}")
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr,
-                                  weight_decay=config.weight_decay)
-    criterion = nn.MSELoss()
+    # Split optimizer: no weight decay on Transformer body, ridge on output head only
+    body_params = [p for n, p in model.named_parameters()
+                   if not n.startswith("output_head")]
+    head_params_list = list(model.output_head.parameters())
+    optimizer = torch.optim.AdamW([
+        {"params": body_params, "weight_decay": 0.0},
+        {"params": head_params_list, "weight_decay": config.ridge_lambda},
+    ], lr=config.lr)
     amp_scaler = torch.amp.GradScaler("cuda")
 
     best_val_loss = float("inf")
-    best_val_ic = -float("inf")
     best_state = None
     best_epoch = 0
     patience_counter = 0
@@ -338,25 +266,24 @@ def train_model(train_data: MonthGroupedData, val_data: MonthGroupedData,
     for epoch in range(1, config.max_epochs + 1):
         t_ep = time.time()
 
-        train_loss = train_one_epoch(
-            model, train_data, optimizer, criterion, amp_scaler, config, device)
+        train_loss = train_one_epoch_msrr(
+            model, train_data, optimizer, amp_scaler, config, device)
 
-        # Validation
-        val_preds, val_targets, val_months, _ = evaluate(model, val_data, device)
-        val_mse = float(np.mean((val_targets - val_preds) ** 2))
+        # Validation — MSRR loss
+        val_loss, val_preds, val_targets, val_months, _ = evaluate_msrr(
+            model, val_data, device)
         val_ic = compute_cross_sectional_ic(val_preds, val_targets, val_months)
 
         elapsed = time.time() - t_ep
         if epoch <= 5 or epoch % 10 == 0 or epoch == config.max_epochs:
             logger.debug(f"    Epoch {epoch:3d}: trn={train_loss:.6f}, "
-                         f"val_mse={val_mse:.6f}, val_ic={val_ic:.4f}, "
+                         f"val_msrr={val_loss:.6f}, val_ic={val_ic:.4f}, "
                          f"pat={patience_counter}/{config.patience}, {elapsed:.1f}s")
 
-        # Early stopping (MSE, with min_epochs)
+        # Early stopping on MSRR loss (lower is better)
         if epoch >= config.min_epochs:
-            if val_mse < best_val_loss:
-                best_val_loss = val_mse
-                best_val_ic = val_ic
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
                 best_epoch = epoch
                 best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
                 patience_counter = 0
@@ -371,12 +298,12 @@ def train_model(train_data: MonthGroupedData, val_data: MonthGroupedData,
         model.to(device)
 
     total_time = time.time() - t0
-    logger.info(f"    seed{seed}: ep={best_epoch}, ic={best_val_ic:.4f}, {total_time:.1f}s")
+    logger.info(f"    seed{seed}: ep={best_epoch}, val_msrr={best_val_loss:.6f}, "
+                f"{total_time:.1f}s")
 
     return {
         "model": model,
         "best_epoch": best_epoch,
-        "best_val_ic": best_val_ic,
         "best_val_loss": best_val_loss,
     }
 
@@ -386,15 +313,16 @@ def train_model(train_data: MonthGroupedData, val_data: MonthGroupedData,
 # ---------------------------------------------------------------------------
 
 def main():
-    config = TransformerConfig()
+    config = MSRRConfig()
     logger = setup_logging(config.output_dir)
 
     logger.info("=" * 70)
-    logger.info("Cross-Sectional Transformer for Asset Pricing")
+    logger.info("Cross-Sectional Transformer with MSRR Loss")
     logger.info(f"  d_model={config.d_model}, heads={config.n_heads}, "
                 f"layers={config.n_layers}, d_ff={config.d_ff}")
     logger.info(f"  lr={config.lr}, wd={config.weight_decay}, "
                 f"dropout={config.dropout}, grad_accum={config.grad_accum_steps}")
+    logger.info(f"  Loss: MSRR  L = E[(1 - w'R)^2]")
     logger.info(f"  test_years={config.test_years}")
     logger.info("=" * 70)
 
@@ -407,8 +335,6 @@ def main():
 
     # --- Load data (reuse from train_nn) ---
     end_year = max(config.test_years)
-    base_cfg = Config()
-
     logger.info("Loading data...")
     returns = load_returns(config.data_dir, config.train_start, end_year, logger)
     universe = load_universe(config.data_dir, config.train_start, end_year, logger)
@@ -422,7 +348,6 @@ def main():
         build_long_panel(universe, returns, signals, macro, rfree,
                          config.signal_names, config.macro_names, logger)
 
-    # Free raw data
     del returns, universe, signals, macro, rfree
     gc.collect()
 
@@ -430,11 +355,12 @@ def main():
                 f"{len(np.unique(month_ids))} months, "
                 f"{stock_features.shape[1]} signals")
 
-    # --- Results collector ---
+    # --- Results ---
     all_results = []
-    csv_path = os.path.join(config.output_dir, "metrics", "transformer_summary.csv")
+    csv_path = os.path.join(config.output_dir, "metrics", "msrr_transformer_summary.csv")
     csv_fields = ["test_year", "oos_r2_pct", "mean_ic", "std_ic",
                   "mean_ls_ret_pct", "std_ls_ret_pct", "sharpe_ls_annual",
+                  "sdf_sharpe", "sdf_mean_ret", "sdf_std_ret",
                   "n_months", "n_obs", "avg_epochs"]
 
     # --- Yearly expanding-window refit ---
@@ -443,7 +369,6 @@ def main():
         logger.info(f"Test year: {test_year}")
         logger.info(f"{'='*60}")
 
-        # Split
         val_end_year = test_year - 1
         val_start_year = test_year - config.val_years
         train_end_year = val_start_year - 1
@@ -462,11 +387,9 @@ def main():
         logger.info(f"  Val:   {val_start_year}-01..{val_end_year}-12 ({val_mask.sum():,})")
         logger.info(f"  Test:  {test_year} ({test_mask.sum():,})")
 
-        # Scale features (no interactions)
         scaler = TransformerFeatureScaler(clip_std=config.clip_std)
         scaler.fit(stock_features[train_mask], macro_features[train_mask])
 
-        # Build MonthGroupedData for each split
         def build_split(mask):
             s, m = scaler.transform(stock_features[mask].copy(),
                                     macro_features[mask].copy())
@@ -488,15 +411,17 @@ def main():
         seed_preds = []
         seed_epochs = []
         for seed in range(config.n_seeds):
-            result = train_model(train_data, val_data, test_year, seed,
-                                 config, device, logger)
+            result = train_model_msrr(train_data, val_data, test_year, seed,
+                                      config, device, logger)
+
+            # Evaluate on test set
             preds, _, _, _ = evaluate(result["model"], test_data, device)
             seed_preds.append(preds)
             seed_epochs.append(result["best_epoch"])
 
             # Save model weights
             model_path = os.path.join(config.output_dir, "models",
-                                      f"TF_year{test_year}_seed{seed}.pt")
+                                      f"MSRR_year{test_year}_seed{seed}.pt")
             torch.save(result["model"].state_dict(), model_path)
 
             del result
@@ -519,42 +444,52 @@ def main():
             "prediction": ensemble_preds,
         })
         pred_path = os.path.join(config.output_dir, "predictions",
-                                 f"pred_ensemble_TF_year{test_year}.parquet")
+                                 f"pred_ensemble_MSRR_year{test_year}.parquet")
         pred_df.to_parquet(pred_path, index=False)
 
         logger.info(f"  ENSEMBLE ({config.n_seeds} seeds):")
+
+        # Standard decile-sort metrics (for comparison with MSE transformer)
         metrics = compute_oos_metrics(ensemble_preds, test_targets,
                                       test_months, logger)
+
+        # SDF portfolio metrics (direct w'R)
+        sdf_metrics = compute_sdf_portfolio_metrics(
+            ensemble_preds, test_targets, test_months, logger)
+
+        metrics.update(sdf_metrics)
         metrics["test_year"] = test_year
         metrics["avg_epochs"] = np.mean(seed_epochs)
         all_results.append(metrics)
 
-        # Save intermediate CSV
+        # Save CSV
         with open(csv_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=csv_fields)
             writer.writeheader()
             for r in all_results:
-                writer.writerow({k: r[k] for k in csv_fields})
+                writer.writerow({k: r.get(k, "") for k in csv_fields})
 
-        # Cleanup
         del train_data, val_data, test_data, seed_preds
         gc.collect()
         torch.cuda.empty_cache()
 
     # --- Summary ---
     logger.info("\n" + "=" * 70)
-    logger.info("TRANSFORMER RESULTS SUMMARY")
+    logger.info("MSRR TRANSFORMER RESULTS SUMMARY")
     logger.info("=" * 70)
     for r in all_results:
         logger.info(f"  {r['test_year']}: R²={r['oos_r2_pct']:+.4f}%, "
-                     f"IC={r['mean_ic']:.4f}, Sharpe={r['sharpe_ls_annual']:.2f}, "
+                     f"IC={r['mean_ic']:.4f}, "
+                     f"L/S Sharpe={r['sharpe_ls_annual']:.2f}, "
+                     f"SDF Sharpe={r['sdf_sharpe']:.2f}, "
                      f"epochs={r['avg_epochs']:.0f}")
 
     r2s = [r["oos_r2_pct"] for r in all_results]
     ics = [r["mean_ic"] for r in all_results]
-    shs = [r["sharpe_ls_annual"] for r in all_results]
+    ls_shs = [r["sharpe_ls_annual"] for r in all_results]
+    sdf_shs = [r["sdf_sharpe"] for r in all_results]
     logger.info(f"  AVG:  R²={np.mean(r2s):+.4f}%, IC={np.mean(ics):.4f}, "
-                f"Sharpe={np.mean(shs):.2f}")
+                f"L/S Sharpe={np.mean(ls_shs):.2f}, SDF Sharpe={np.mean(sdf_shs):.2f}")
 
     logger.info(f"\nSaved to {csv_path}")
     logger.info("Done!")
