@@ -75,7 +75,10 @@ class _Block(nn.Module):
 
     def forward(self, x):
         x_norm = self.norm1(x)
-        attn_out, _ = self.self_attn(x_norm, x_norm, x_norm)
+        # need_weights=False: don't materialize/return the (1,N,N) score matrix and
+        # let MHA dispatch the fused SDPA/FlashAttention kernel (exact; ~2.6e-7 diff).
+        # Cheap hygiene now; essential headroom for the temporal/larger-universe variants.
+        attn_out, _ = self.self_attn(x_norm, x_norm, x_norm, need_weights=False)
         x = x + self.dropout(attn_out)
         x = x + self.ffn(self.norm2(x))
         return x
