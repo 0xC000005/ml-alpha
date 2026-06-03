@@ -1,0 +1,9 @@
+{"model": "mse", "year": 2014, "n_seeds": 3, "outdir": "output/exp/temporal/base_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "outdir": "output/exp/temporal/base_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "outdir": "output/exp/temporal/base_2018"}
+{"model": "mse", "year": 2014, "n_seeds": 3, "macro_temporal": "gru", "macro_lookback": 12, "outdir": "output/exp/temporal/gru12_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "macro_temporal": "gru", "macro_lookback": 12, "outdir": "output/exp/temporal/gru12_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "macro_temporal": "gru", "macro_lookback": 12, "outdir": "output/exp/temporal/gru12_2018"}
+{"model": "mse", "year": 2014, "n_seeds": 3, "macro_temporal": "gru", "macro_lookback": 24, "outdir": "output/exp/temporal/gru24_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "macro_temporal": "gru", "macro_lookback": 24, "outdir": "output/exp/temporal/gru24_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "macro_temporal": "gru", "macro_lookback": 24, "outdir": "output/exp/temporal/gru24_2018"}

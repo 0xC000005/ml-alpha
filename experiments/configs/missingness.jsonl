@@ -1,0 +1,6 @@
+{"model": "mse", "year": 2014, "n_seeds": 3, "missingness": false, "outdir": "output/exp/miss/base_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "missingness": false, "outdir": "output/exp/miss/base_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "missingness": false, "outdir": "output/exp/miss/base_2018"}
+{"model": "mse", "year": 2014, "n_seeds": 3, "missingness": true, "outdir": "output/exp/miss/miss_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "missingness": true, "outdir": "output/exp/miss/miss_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "missingness": true, "outdir": "output/exp/miss/miss_2018"}

@@ -1,0 +1,15 @@
+{"model": "mse", "year": 2014, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 1, "ffn_kind": "gelu", "outdir": "output/exp/cap/base_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 1, "ffn_kind": "gelu", "outdir": "output/exp/cap/base_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 1, "ffn_kind": "gelu", "outdir": "output/exp/cap/base_2018"}
+{"model": "mse", "year": 2014, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 2, "ffn_kind": "gelu", "outdir": "output/exp/cap/L2_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 2, "ffn_kind": "gelu", "outdir": "output/exp/cap/L2_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 2, "ffn_kind": "gelu", "outdir": "output/exp/cap/L2_2018"}
+{"model": "mse", "year": 2014, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 3, "ffn_kind": "gelu", "outdir": "output/exp/cap/L3_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 3, "ffn_kind": "gelu", "outdir": "output/exp/cap/L3_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "d_model": 32, "d_ff": 64, "n_layers": 3, "ffn_kind": "gelu", "outdir": "output/exp/cap/L3_2018"}
+{"model": "mse", "year": 2014, "n_seeds": 3, "d_model": 64, "d_ff": 128, "n_layers": 1, "ffn_kind": "gelu", "outdir": "output/exp/cap/d64_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "d_model": 64, "d_ff": 128, "n_layers": 1, "ffn_kind": "gelu", "outdir": "output/exp/cap/d64_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "d_model": 64, "d_ff": 128, "n_layers": 1, "ffn_kind": "gelu", "outdir": "output/exp/cap/d64_2018"}
+{"model": "mse", "year": 2014, "n_seeds": 3, "d_model": 64, "d_ff": 128, "n_layers": 2, "ffn_kind": "gelu", "outdir": "output/exp/cap/d64L2_2014"}
+{"model": "mse", "year": 2016, "n_seeds": 3, "d_model": 64, "d_ff": 128, "n_layers": 2, "ffn_kind": "gelu", "outdir": "output/exp/cap/d64L2_2016"}
+{"model": "mse", "year": 2018, "n_seeds": 3, "d_model": 64, "d_ff": 128, "n_layers": 2, "ffn_kind": "gelu", "outdir": "output/exp/cap/d64L2_2018"}
