@@ -58,9 +58,9 @@ from train_transformer import (
 @dataclass
 class MSRRConfig:
     # Data
-    data_dir: str = "gkx_full"
-    macro_file: str = "welch_goyal_2024.xlsx"
-    sector_file: str = "gkx_full/sector_mapping.csv"
+    data_dir: str = "ml_alpha_data/gkx_full"
+    macro_file: str = "ml_alpha_data/welch_goyal_2024.xlsx"
+    sector_file: str = "ml_alpha_data/gkx_full/sector_mapping.csv"
     output_dir: str = "output"
 
     # Architecture (same as MSE transformer)

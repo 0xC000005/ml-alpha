@@ -1,5 +1,8 @@
 # Data (not licensed for redistribution — obtain from original sources)
+# Local data lives in ml_alpha_data/; repo-root symlinks point into it.
+ml_alpha_data/
 gkx_full/
+gkx_full
 welch_goyal_2024.xlsx
 fama_french_factors.xlsx
 GKX_20201231.csv
@@ -9,6 +12,9 @@ GKX_20201231.csv
 
 # Training outputs
 output/
+
+# Local planning memos (not for commit)
+COMPUTE_CANADA.md
 
 # Python
 __pycache__/
