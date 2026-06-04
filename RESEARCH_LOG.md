@@ -1,14 +1,35 @@
 # ml-alpha — Research Log
 
-A hypothesis-driven lab notebook for improving the cross-sectional / MSRR
-return-prediction models. Format follows standard ML experiment-tracking practice
-(record hypothesis · code version · config · data · command · metrics · conclusion;
-append-only; one hypothesis per experiment so results are comparable and reproducible).
+A hypothesis-driven lab notebook for improving the cross-sectional (MSE) and MSRR
+(Kelly et al. 2025) return-prediction transformers. Structure follows *Ten Simple Rules
+for a Computational Biologist's Laboratory Notebook* (Schnell, PLOS Comput Biol 2015) and
+standard ML experiment-tracking practice: a **chronological, append-only** record where
+every experiment carries date · hypothesis/rationale · code commit · config · data ·
+command · metrics · verdict, and distilled findings are promoted to **Decisions &
+Learnings**. This file is the **index of record**; large artifacts (models/predictions)
+stay on cluster scratch, summary CSVs are pulled to `output/` (gitignored).
+
+**Maintainer:** Max Zhang · **Repo:** `ml-alpha` (working branch `experiments`) ·
+**Started:** 2026-06-02 · **Last updated:** 2026-06-04 ·
+**Compute:** DRAC / Trillium (H100) — see `.claude/skills/cluster` + `COMPUTE_CANADA.md` (gitignored).
 
 **How to use this file**
 - Pick an idea from the **Backlog**, give it the next `EXP-NNN`, and add a stub to the **Experiment Log** *before* running.
 - An experiment must record: git commit, exact config/command, where outputs live, and a verdict against a stated prediction.
-- Append; do not rewrite history. Promote distilled findings to **Decisions & Learnings**.
+- Append; do not rewrite history. Promote distilled findings to **Decisions & Learnings**. Cross-link entries with `EXP-NNN` / `B-NN` / `L-NN`.
+
+## Contents
+1. Compute discipline — the rules every run obeys
+2. Status snapshot — where the project stands today
+3. Environment, Data & Reproducibility — hardware, software, data card, how to reproduce
+4. Backlog — prioritized hypotheses (`B-NN`)
+5. Experiment summary — all `EXP-NNN` at a glance
+6. Experiment Log — full append-only entries (EXP-001 … EXP-009)
+7. Enhancement Roadmap — the design-workflow output (tiers, discards, sequenced plan)
+8. Planned / gated experiments — prepped but not yet run
+9. Decisions & Learnings — distilled findings (`L-01 … L-08`)
+10. Conventions — naming, outputs, harness, monitoring
+11. Glossary — terms of art
 
 ---
 
@@ -24,13 +45,30 @@ The Trillium harness makes runs cheap, which makes waste easy. Rules:
 
 ---
 
-## Status snapshot (2026-06-03)
+## Status snapshot (2026-06-04)
 
-- **Models:** Cross-Sectional Transformer (MSE) + MSRR Transformer (Kelly 2025), ~14K params, ONE pre-norm block (d_model=32, n_heads=4, d_ff=64, **n_layers is dead config**). Expanding-window yearly refit, monthly predictions, multi-seed ensemble. Shared pipeline in `train_nn.py`.
-- **Reproduced on Trillium (EXP-001):** MSE avg L/S Sharpe **+2.84** (README 2.16); MSRR avg SDF Sharpe **+3.13** on 2016–19 (README 2.05). Both ran *hot* vs published; MSRR per-year is high-variance.
-- **Infra:** validated clone→data→offline-venv→`cluster/` harness→collect pipeline. See `COMPUTE_CANADA.md` (gitignored) + `docs/superpowers/specs/2026-06-03-transformer-repro-harness-design.md`.
-- **Capacity screen done (EXP-003):** depth noisy-positive but **non-monotone** (L3<base), width (d_model) **HURTS** every year, nothing clears the promote bar — *noise-limited, not capacity-limited, at this scale*.
-- **Paper read (w33351 AIPM):** our ~2.0 sits at their **post-2002 BSV/linear** level (2.03); their **4.57 headline is full-sample** (every model ~halves post-2002 — their best modern transformer = 3.37). Gap is **scale + regime, not data**. Period-matched, we already equal their linear modern-era baseline. → **Enhancement Roadmap** below.
+- **Models:** Cross-Sectional Transformer (MSE) + MSRR Transformer (Kelly 2025), ~14K params, ONE pre-norm block (d_model=32, n_heads=4, d_ff=64). Expanding-window **yearly** refit, monthly predictions, **10-seed** ensemble. Shared data pipeline in `train_nn.py` (frozen).
+- **Current honest baseline (MSRR, L1 metric, EXP-009):** 8-yr (2012–19) mean SDF Sharpe **≈ 1.81** with pooled-z inputs — **this is the number to beat.** (The MSE transformer's decile L/S Sharpe reproduces at ~2.0–2.8; EXP-001.)
+- **Ruled out so far:** raw-mean MSRR ensembling (seed-scale luck → use L1, EXP-002); capacity at this scale (depth non-monotone, width hurts, EXP-003); **per-month rank-standardization & per-month-z inputs (REJECTED on confirmation, EXP-009)**; missingness mask (subfloor, B-06).
+- **Paper (w33351 AIPM):** our ~2.0 = their **post-2002 linear (BSV) baseline** (2.03); the 4.57 headline is *full-sample* (all models ~halve post-2002; best modern transformer 3.37). Gap is **scale + regime, not data** (L-06).
+- **Binding constraint:** the **OOS-Sharpe noise floor** (~±0.4 over 96 months). Every cheap input/capacity lever tested so far sits *inside* it — the live question is which move has an effect *large enough to clear it* (L-08).
+- **Infra:** validated clone→data→offline-venv→`cluster/` harness→collect pipeline (EXP-001); design doc `docs/superpowers/specs/2026-06-03-transformer-repro-harness-design.md`.
+
+---
+
+## Environment, Data & Reproducibility
+
+*(PLOS Rules 6–7: record how every result was produced, under version control.)*
+
+- **Hardware.** Cluster: **Trillium** (SciNet / DRAC), NVIDIA **H100 80GB**; 1 GPU = quarter-node (24 cores, ~188 GiB RAM); arrays throttled `%2`. Local dev: single RTX 4080 (~16 GB).
+- **Software.** Python **3.12**; **PyTorch 2.12 (cu130)**, AMP (`GradScaler("cuda")`); numpy / pandas / scipy / openpyxl. **pyarrow comes from the `arrow/24.0.0` module, not pip** (cluster). Local env is uv-managed (`pyproject.toml` + `uv.lock` + `.python-version`); cluster env via `source activate_cluster.sh`.
+- **Data card** (not redistributable; gitignored under `ml_alpha_data/`):
+  - `gkx_full/` — per-signal `signal_*.parquet`, `returns.parquet`, `universe.parquet` (Gu–Kelly–Xiu 2020 lineage).
+  - `welch_goyal_2024.xlsx` — 8 macro predictors derived in `load_macro`: dp, ep, bm, ntis, tbl, tms, dfy, svar.
+  - `sector_mapping.csv` — PERMNO → SIC 2-digit (74 industries).
+  - Panel (`build_long_panel`, train_nn.py): **95 signals + 8 macro + 74 industry dummies**; **target = next-month excess return** (signals at *t* predict *t+1*); ~26% signal missingness → 0 post-standardization; rows with NaN next-month return dropped. Period used here: **1975–2019**.
+- **Reproducibility.** Every EXP records its **git commit**, exact **config JSON**, Slurm **array id**, and **output path**. Models are **n-seed ensembles** (`set_seed(0..n-1)`). Determinism caveat: AMP + CUDA are **not bit-exact across GPUs** → judge **statistically across the seed × year distribution** (L-01), never a single run.
+- **Reproduce an EXP:** regenerate configs (`experiments/gen_configs.py`) → `rsync -a experiments/ trillium-gpu:/scratch/maxzhang/ml-alpha/experiments/` → `sbatch --array=0-N%2 --export=ALL,CONFIG_FILE=…,RUNNER=… experiments/sweep.sbatch` → `python experiments/collect_screen.py <dir> <summary.csv>`.
 
 ---
 
@@ -56,6 +94,19 @@ Decisions L-03). Status: 🔲 todo · 🔬 in progress · ✅ done · ❌ tested
 
 **First move (revised 2026-06-04 — after EXP-003/007/009):**
 B-00/B-01 **done-and-weak** (EXP-003). B-05 (L1 honest metric) **adopted + proven essential**. B-11 (rank-standardize) **REJECTED** — passed a 5-seed screen but failed the 10-seed/8yr confirmation (EXP-009); base ≥ rank (L-08). **Sobering takeaway:** the two cheapest, best-motivated input/preprocessing levers (rank-norm, per-month-z) do **not** beat base over 8 years — the binding constraint is the **noise floor**, not the input. Remaining options, all needing an effect *larger* than the floor to be worth it: the gated MSRR **depth ladder** (EXP-008, screen with ≥10 seeds now) and **paper-regime training** (Tier 3: monthly refit ⇒ ~12× OOS months ⇒ a tighter floor, the one move that attacks the *power* problem directly). See **Enhancement Roadmap** below.
+
+---
+
+## Experiment summary (at a glance)
+
+| ID | Date | Title | Result / verdict | Status |
+|----|------|-------|------------------|--------|
+| EXP-001 | 06-02/03 | Reproduce README transformer results (Trillium) | MSE L/S Sharpe 2.84, MSRR raw SDF 3.13 — signal faithful (IC exact), Sharpe ran *hot* (seed luck) | ✅ |
+| EXP-002 | 06-03 | MSRR ensemble L1-normalization A/B (no retrain) | L1 is the *honest* combiner but lowers Sharpe 3.13→2.06; raw was scale-luck | ✅ adopted as metric |
+| EXP-003 | 06-03 | Capacity / Virtue-of-Complexity screen (MSE) | depth non-monotone (saturates ≈K2), width **hurts**, noise-limited | ✅ tested-weak |
+| EXP-007 | 06-03 | Rank-standardize A/B **screen** (MSRR, 5 seeds × 3 yr) | a2rank +0.92 vs base — *passed the screen* | ✅ (later overturned) |
+| EXP-009 | 06-03/04 | Rank-standardize **confirmation** (MSRR, 10 seeds × 8 yr) | **REVERSED**: base 1.81 ≥ a2rank 1.42; rank **rejected** | ❌ negative |
+| EXP-004/5/6/8 | — | sophistication / temporal-GRU / monthly-refit / MSRR depth | prepped + locally validated, **GATED**, not run | 🔲 planned |
 
 ---
 
@@ -136,10 +187,10 @@ Prep (code + local CPU validation) done where noted; **no cluster job runs witho
 - **L-02 (MSRR scale):** MSRR weight *magnitude* carries no signal (scale-invariant Sharpe). Raw ensemble averaging therefore weights seeds by noise; this inflates Sharpe via lucky large-scale seeds. Verified in EXP-002.
 - **L-03 (don't trust armchair dismissals):** An adversarial brainstorm (workflow `wk32jnjtd`) was prompted to treat overfitting as the enemy and predictably labeled capacity/temporal ideas "traps." But (a) its top pick failed when tested (EXP-002), and (b) Kelly et al.'s *Virtue of Complexity* (JF 2024) — same author lineage as the MSRR loss — argues bigger *helps* return prediction. **Test ideas; don't dismiss them on priors.**
 - **L-04 (efficiency):** Some questions need zero training — EXP-002 answered a real question by re-analyzing saved models. Always check whether saved artifacts suffice first.
-- **L-08 (screens can be FALSE POSITIVES — confirm with full seeds × years):** EXP-007 (5 seeds, 3 hand-picked years) showed rank-standardization +0.92 over base; EXP-009 (10 seeds, 8 years) **reversed it** — base 1.81 ≥ a2rank 1.42, rank wins only 3/8 years, IC tied. The screen caught *base* on unlucky 5-seed draws in exactly those 3 years (base 2014 L1: 1.07@5 → 3.18@10 seeds). The L1 SDF Sharpe is so noisy that **even a 10-seed ensemble over one year swings >2 points**, so a 5-seed/3-year screen has ~no power to resolve a ≤0.5 effect. Rules going forward: (1) screen with **≥10 seeds**; (2) judge the **row-mean over many years**, never a 3-year cherry-pick; (3) treat a single-arm screen "win" as a *hypothesis*, never a finding, until full confirmation; (4) the base/control MUST run at the same seed count in the same conditions (its noise is the thing you're testing against). Confirmation discipline (L-01) is what caught this — keep doing it.
-- **L-07 (IC and SDF Sharpe can diverge — judge MSRR on its objective):** In EXP-007 per-month rank-standardization raised the MSRR **portfolio** L1 Sharpe (+0.92 mean vs base) while leaving **IC unchanged/slightly worse** (base 0.012 ≥ rank 0.010). An MSRR model outputs portfolio WEIGHTS, not a ranking — a better-conditioned input can improve the realized portfolio (weight structure, faster/cleaner convergence) without improving rank-correlation. So judge MSRR changes on the **L1 SDF Sharpe** (the optimized objective), use IC as a secondary stability check, and never assume the two move together. (For the MSE transformer the reverse holds — there IC is the stable signal; pick the metric that matches the loss.)
-- **L-06 (period-matching + the 1-survivor verdict):** The paper's ~4 vs our ~2 is **~80% regime + scale, not data.** The 4.57 headline is *full-sample 1968–2022*; every model halves after ~2002, and their best **modern** transformer is **3.37** while their **linear BSV** baseline is **2.03** — exactly where our reproduction sits. So period-matched we already equal their linear modern-era baseline; closing to ~3.4 is a capacity+apparatus problem (deeper stack, monthly refit, CV'd ridge, rank-normed inputs), and their own decomposition says **depth does most of the work, cross-asset attention is the smaller increment.** When 20 enhancement candidates were put through adversarial scrutiny against our ±0.4–0.5 window-noise floor, **only per-month rank-standardization survived as `robust=true`** — most "obvious" knobs (width, GLU, extra heads, missingness, macro interactions, turnover penalty, LR schedules) have plausible effects *smaller than the sampling SE on 48–96 OOS months*, so they literally cannot be resolved on our windows. Corollary: the binding constraint is **statistical power (OOS months), not ideas** — which is why monthly refit (≈12× the OOS observations) is the highest-leverage *regime* change even though its per-estimate effect is itself subfloor.
 - **L-05 (attention scaling, workflow wqq713yie):** The cross-section is a permutation-invariant SET (no positional encoding anywhere) and at N≈5000 it is **NOT attention-bound** (block fwd+bwd ≈1.4 GB; the 16–25 GB is gradients/AMP/optimizer/rolling-window data). So **KV-cache** (an autoregressive-decoding optimization — this is a single-pass non-causal encoder, nothing to cache) and **sequence-sparse** patterns (Longformer/BigBird sliding-window/strided — assume an ordering the set lacks; would mask arbitrary stocks and destroy signal-bearing cross-stock edges) are **misapplied here**. The long-context curse was tamed by **exact FlashAttention**, not approximation. Free exact win TAKEN: `need_weights=False` at the MHA calls → drops the discarded (1,N,N) tensor + dispatches the fused SDPA/FlashAttention kernel (applied in `experiments/exp_transformer.py`; outputs match to ~2.6e-7). The real O(N²) cliff is the **TEMPORAL extension**: naive tokens = stock×month → (N·T)² ≈ 29 GB fp16 scores at T=24 (~576×). **Design it out** — per-stock temporal encoder (GRU/TCN) collapsing each stock's trailing window to ONE token so token count stays N (cheapest; macro-GRU B-02 is the wired first step), or exact axial/factorized attention; never build the flat (N·T)² map then approximate. ISAB inducing points (B-03) only matter past ~10–15k stocks/month; Linformer is invalid (its fixed projection breaks when N varies monthly). Approximate attention must beat exact on the OOS seed×year distribution before adoption (L-01).
+- **L-06 (period-matching + the 1-survivor verdict):** The paper's ~4 vs our ~2 is **~80% regime + scale, not data.** The 4.57 headline is *full-sample 1968–2022*; every model halves after ~2002, and their best **modern** transformer is **3.37** while their **linear BSV** baseline is **2.03** — exactly where our reproduction sits. So period-matched we already equal their linear modern-era baseline; closing to ~3.4 is a capacity+apparatus problem (deeper stack, monthly refit, CV'd ridge, rank-normed inputs), and their own decomposition says **depth does most of the work, cross-asset attention is the smaller increment.** When 20 enhancement candidates were put through adversarial scrutiny against our ±0.4–0.5 window-noise floor, **only per-month rank-standardization survived as `robust=true`** — most "obvious" knobs (width, GLU, extra heads, missingness, macro interactions, turnover penalty, LR schedules) have plausible effects *smaller than the sampling SE on 48–96 OOS months*, so they literally cannot be resolved on our windows. Corollary: the binding constraint is **statistical power (OOS months), not ideas** — which is why monthly refit (≈12× the OOS observations) is the highest-leverage *regime* change even though its per-estimate effect is itself subfloor.
+- **L-07 (IC and SDF Sharpe can diverge — judge MSRR on its objective):** In EXP-007 per-month rank-standardization raised the MSRR **portfolio** L1 Sharpe (+0.92 mean vs base) while leaving **IC unchanged/slightly worse** (base 0.012 ≥ rank 0.010). An MSRR model outputs portfolio WEIGHTS, not a ranking — a better-conditioned input can improve the realized portfolio (weight structure, faster/cleaner convergence) without improving rank-correlation. So judge MSRR changes on the **L1 SDF Sharpe** (the optimized objective), use IC as a secondary stability check, and never assume the two move together. (For the MSE transformer the reverse holds — there IC is the stable signal; pick the metric that matches the loss.)
+- **L-08 (screens can be FALSE POSITIVES — confirm with full seeds × years):** EXP-007 (5 seeds, 3 hand-picked years) showed rank-standardization +0.92 over base; EXP-009 (10 seeds, 8 years) **reversed it** — base 1.81 ≥ a2rank 1.42, rank wins only 3/8 years, IC tied. The screen caught *base* on unlucky 5-seed draws in exactly those 3 years (base 2014 L1: 1.07@5 → 3.18@10 seeds). The L1 SDF Sharpe is so noisy that **even a 10-seed ensemble over one year swings >2 points**, so a 5-seed/3-year screen has ~no power to resolve a ≤0.5 effect. Rules going forward: (1) screen with **≥10 seeds**; (2) judge the **row-mean over many years**, never a 3-year cherry-pick; (3) treat a single-arm screen "win" as a *hypothesis*, never a finding, until full confirmation; (4) the base/control MUST run at the same seed count in the same conditions (its noise is the thing you're testing against). Confirmation discipline (L-01) is what caught this — keep doing it.
 
 ---
 
@@ -150,3 +201,17 @@ Prep (code + local CPU validation) done where noted; **no cluster job runs witho
 - **Run via the harness:** `sbatch --array=...%2 cluster/repro.sbatch` (parameterized), or `srun ... bash -lc 'source activate_cluster.sh && python ...'` for one-offs. See `cluster/` and the design doc.
 - **Monitoring:** `sq`; `srun --jobid=$J --overlap nvidia-smi` (NOT `--gres=none` on Trillium); `seff <jid>` post-run.
 - **Naming:** experiments `EXP-NNN`; backlog ideas `B-NN`; learnings `L-NN`.
+
+---
+
+## Glossary
+
+- **MSRR** — Maximum Sharpe Ratio Regression (Kelly–Xiu): loss `E[(1 − wᵀR)²]`; the model outputs portfolio **weights** `w` directly (the SDF), so training maximizes the portfolio Sharpe rather than predicting returns.
+- **SDF / SDF Sharpe** — stochastic discount factor `M = 1 − wᵀR`; the SDF portfolio's monthly return is `wᵀR` and its annualized Sharpe is `mean/std·√12` — the MSRR evaluation metric.
+- **L1 (honest) combiner** — ensemble rule that L1-normalizes each seed's per-month weights to ‖w‖₁=1 *before* averaging (equal-vote), then L1-normalizes the final ensemble. Removes the scale-invariance bias of raw `np.mean` (L-02); the comparison denominator for all MSRR A/Bs.
+- **IC** — Information Coefficient: cross-sectional correlation of predictions with next-month returns. The stable signal metric for the **MSE** model; only a secondary check for MSRR (L-07).
+- **OOS** — out-of-sample (the held-out test year, unseen in train/val).
+- **Noise floor** — irreducible sampling SE of an annualized Sharpe ≈ `√((1 + ½·SR²)/T)`: ~±0.5 over 48 months, ~±0.4 over 96. Effects smaller than this can't be resolved on our windows (L-08).
+- **Expanding vs rolling window** — expanding = train from 1975 up to *t*−1 (our default); rolling = a fixed trailing window (the paper uses 60 months). The **refit cadence** (yearly vs monthly) is an orthogonal knob.
+- **Paper model ladder (w33351)** — BSV (linear, own-asset) → DKKM (shallow NN, own-asset) → MLP (deep NN, own-asset) → **Transformer** (deep + cross-asset attention). Our MSRR transformer is a toy instance of the last rung.
+- **Screen vs confirmation** — *screen* = cheap probe (few seeds × few years) to form a hypothesis; *confirmation* = full 8yr × 10-seed run that can overturn it (EXP-007 → EXP-009; L-08).
