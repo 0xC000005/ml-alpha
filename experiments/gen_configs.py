@@ -72,3 +72,14 @@ write("msrr_depth.jsonl", [
     dict(model="msrr", year=y, n_seeds=SEEDS5, n_layers=nl, combiner="l1norm",
          outdir=f"output/exp/msrr_depth/{tag}_{y}")
     for (tag, nl) in depth_arms for y in DEPTH_YEARS])
+
+# EXP-009: full confirmation of the rank screen winner (a2rank PASSED EXP-007).
+# 8 years × 10 seeds (production standard) over the ~±0.4 96-month Sharpe floor.
+# base = comparison denominator (must run in the same conditions); a1monthz = robustness
+# comparator (uniquely survived 2016 in the screen). Judge on L1 SDF Sharpe.
+CONFIRM_YEARS = list(range(2012, 2020))   # 2012..2019
+confirm_arms = [("base", "pooled_z"), ("a1monthz", "month_z"), ("a2rank", "rank")]
+write("confirm_rank.jsonl", [
+    dict(model="msrr", year=y, n_seeds=10, feat_scaler=fs, combiner="l1norm",
+         outdir=f"output/exp/confirm_rank/{tag}_{y}")
+    for (tag, fs) in confirm_arms for y in CONFIRM_YEARS])
