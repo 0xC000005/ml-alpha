@@ -1,0 +1,9 @@
+{"model": "msrr", "year": 2014, "n_seeds": 5, "n_layers": 1, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/base_2014"}
+{"model": "msrr", "year": 2018, "n_seeds": 5, "n_layers": 1, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/base_2018"}
+{"model": "msrr", "year": 2019, "n_seeds": 5, "n_layers": 1, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/base_2019"}
+{"model": "msrr", "year": 2014, "n_seeds": 5, "n_layers": 2, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/L2_2014"}
+{"model": "msrr", "year": 2018, "n_seeds": 5, "n_layers": 2, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/L2_2018"}
+{"model": "msrr", "year": 2019, "n_seeds": 5, "n_layers": 2, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/L2_2019"}
+{"model": "msrr", "year": 2014, "n_seeds": 5, "n_layers": 3, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/L3_2014"}
+{"model": "msrr", "year": 2018, "n_seeds": 5, "n_layers": 3, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/L3_2018"}
+{"model": "msrr", "year": 2019, "n_seeds": 5, "n_layers": 3, "combiner": "l1norm", "outdir": "output/exp/msrr_depth/L3_2019"}

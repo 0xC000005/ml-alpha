@@ -47,3 +47,28 @@ write("temporal.jsonl", rows)
 # EXP-006 monthly refit (exp_main.py) -- one year only
 write("monthly.jsonl", [dict(model="mse", year=2018, n_seeds=SEEDS, monthly=True,
                              outdir="output/exp/monthly/mse_2018")])
+
+# ---------------------------------------------------------------------------
+# Roadmap (wf_2f4b6eee) -- MSRR transformer enhancements. RUNNER=exp_main_msrr.py.
+# 5 seeds (dispersion is binding); judge on the L1-normalized SDF Sharpe.
+# ---------------------------------------------------------------------------
+SEEDS5 = 5
+
+# B-11 rank-standardization A/B (Tier 1, the one survivor). 4 arms break the confound:
+#   base=A0 pooled-z control / a1monthz=A1 / a2rank=A2 (candidate) / a3rankgauss=A3 hybrid.
+RANK_YEARS = [2014, 2016, 2018]
+rank_arms = [("base", "pooled_z"), ("a1monthz", "month_z"),
+             ("a2rank", "rank"), ("a3rankgauss", "rank_gauss")]
+write("rank_ab.jsonl", [
+    dict(model="msrr", year=y, n_seeds=SEEDS5, feat_scaler=fs, combiner="l1norm",
+         outdir=f"output/exp/rank/{tag}_{y}")
+    for (tag, fs) in rank_arms for y in RANK_YEARS])
+
+# B-01 depth on MSRR (Tier 2, GATED on Tier-1 + honest metric). base=K1/L2=K2/L3=K3,
+# pooled-z held fixed to isolate depth; 2018/2019 = raw star years (test norm survival).
+DEPTH_YEARS = [2014, 2018, 2019]
+depth_arms = [("base", 1), ("L2", 2), ("L3", 3)]
+write("msrr_depth.jsonl", [
+    dict(model="msrr", year=y, n_seeds=SEEDS5, n_layers=nl, combiner="l1norm",
+         outdir=f"output/exp/msrr_depth/{tag}_{y}")
+    for (tag, nl) in depth_arms for y in DEPTH_YEARS])
