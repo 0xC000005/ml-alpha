@@ -8,6 +8,26 @@
             "type": "command",
             "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"${f##*/}\" in train_nn.py|train_transformer.py|train_transformer_msrr.py) printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Frozen production script \u2014 make changes in experiments/ instead (see RESEARCH_LOG.md). Remove this hook in .claude/settings.json to override.\"}}';; esac",
             "statusMessage": "Checking frozen-script guard"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/research-log-checklist.sh\"",
+            "statusMessage": "Injecting stats checklist (RESEARCH_LOG.md)"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/closed-record-reminder.sh\"",
+            "statusMessage": "Checking closed-record convention"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/cluster-submit-gate.sh\"",
+            "statusMessage": "Checking cluster-submission gate"
           }
         ]
       }

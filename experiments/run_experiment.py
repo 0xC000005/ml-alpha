@@ -18,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.exp_transformer import ExpTransformer
+from experiments.manifest import write_manifest
 
 if len(sys.argv) < 2:
     sys.exit("usage: run_experiment.py '<json-config>' [--dry]")
@@ -78,5 +79,6 @@ if dry:
     sys.exit(0)
 
 os.makedirs(cfgj["outdir"], exist_ok=True)
+write_manifest(cfgj["outdir"], cfgj)
 M.main()
 print(f"[exp] DONE {model_kind} {cfgj['year']}", flush=True)
