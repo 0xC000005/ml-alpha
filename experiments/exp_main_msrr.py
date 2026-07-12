@@ -36,6 +36,7 @@ from train_nn import (Config, load_returns, load_universe, load_signals, load_ma
 from train_transformer import MonthGroupedData, evaluate
 from experiments.exp_transformer import ExpTransformer
 from experiments.feature_scalers import make_scaler
+from experiments.manifest import write_manifest
 from experiments.msrr_combine import both_sharpes, sdf_sharpe, combine_seeds
 
 cfgj = json.loads(sys.argv[1])
@@ -83,6 +84,7 @@ if DRY:
 
 for sub in ("logs", "models", "predictions", "metrics", "features"):
     os.makedirs(os.path.join(OUTDIR, sub), exist_ok=True)
+write_manifest(OUTDIR, cfgj)
 
 # --- data ---
 returns = load_returns(cfg.data_dir, TRAIN_START, YEAR, log)
@@ -153,6 +155,18 @@ else:  # l1norm (default)
 dec = compute_oos_metrics(ens, test_targets, test_months, log)
 log.info(f"  SDF Sharpe: raw={sh['sdf_sharpe_raw']:.3f}  "
          f"l1={sh['sdf_sharpe_l1']:.3f}  headline({COMBINER})={headline:.3f}")
+
+# Per-stock predictions. Without these the pooled and VALUE-weighted Sharpes that GKX
+# actually reports cannot be recovered after the run -- only re-derived by retraining.
+# gkx_report.py consumes this file. (month_id is the FEATURE month t; the target is
+# realized at t+1, so a market-cap join on month_id is the formation-date weight.)
+test_permnos = np.concatenate([test_d.permno_dict[m] for m in test_d.months])
+pdir = os.path.join(OUTDIR, "predictions", "predictions.parquet")
+pd.DataFrame({"permno": test_permnos.astype(np.int64),
+              "month_id": test_months.astype(np.int64),
+              "pred": ens.astype(np.float64),
+              "target": test_targets.astype(np.float64)}).to_parquet(pdir, index=False)
+log.info(f"wrote {pdir} ({len(test_permnos)} stock-months)")
 
 row = {
     "test_year": YEAR,

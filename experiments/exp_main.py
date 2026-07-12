@@ -26,6 +26,7 @@ from train_nn import (Config, load_returns, load_universe, load_signals, load_ma
 from train_transformer import (TransformerConfig, TransformerFeatureScaler,
                                MonthGroupedData, build_industry_dummies, evaluate)
 from experiments.exp_transformer import ExpTransformer
+from experiments.manifest import write_manifest
 
 cfgj = json.loads(sys.argv[1])
 MISS = bool(cfgj.get("missingness", False))
@@ -39,6 +40,7 @@ N_SEEDS = int(cfgj.get("n_seeds", 3))
 OUTDIR = cfgj["outdir"]
 for sub in ("logs", "models", "predictions", "metrics", "features"):
     os.makedirs(os.path.join(OUTDIR, sub), exist_ok=True)
+write_manifest(OUTDIR, cfgj)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 log = logging.getLogger("exp_main")
@@ -137,34 +139,48 @@ def run_period(test_start, test_end):
     ens = np.mean(seed_preds, axis=0)
     tt = np.concatenate([test_d.target_dict[m] for m in test_d.months])
     tm = np.concatenate([np.full(len(test_d.target_dict[m]), m, dtype=np.int32) for m in test_d.months])
-    return ens, tt, tm
+    tp = np.concatenate([test_d.permno_dict[m] for m in test_d.months])
+    return ens, tt, tm, tp
 
 
 # --- periods: monthly refit (each month of YEAR, separate model) or yearly (one model) ---
 # In BOTH cases the metric is the annualized Sharpe over the YEAR's 11 monthly L/S
 # returns, so monthly-vs-yearly is apples-to-apples (only the refit cadence differs).
 rows = []
+ens = tt = tm = tp = None
 if MONTHLY:
-    P, T, M = [], [], []
+    P, T, M, Q = [], [], [], []
     for mm in range(1, 12):  # Jan..Nov (Dec dropped: no next-month return at the data edge)
         ym = YEAR * 100 + mm
         out = run_period(ym, ym)
         if out:
-            P.append(out[0]); T.append(out[1]); M.append(out[2])
+            P.append(out[0]); T.append(out[1]); M.append(out[2]); Q.append(out[3])
             log.info(f"  refit month {ym}: predicted {len(out[1])} stocks")
     if P:
-        ens, tt, tm = np.concatenate(P), np.concatenate(T), np.concatenate(M)
-        metrics = compute_oos_metrics(ens, tt, tm, log)  # Sharpe over the full 11-month series
-        metrics["test_year"] = YEAR
-        rows.append(metrics)
+        ens, tt, tm, tp = (np.concatenate(P), np.concatenate(T),
+                           np.concatenate(M), np.concatenate(Q))
 else:
     out = run_period(YEAR * 100 + 1, YEAR * 100 + 11)
     if out:
-        metrics = compute_oos_metrics(out[0], out[1], out[2], log)
-        metrics["test_year"] = YEAR
-        rows.append(metrics)
+        ens, tt, tm, tp = out
 
 import pandas as pd
+
+if ens is not None:
+    metrics = compute_oos_metrics(ens, tt, tm, log)  # Sharpe over the full 11-month series
+    metrics["test_year"] = YEAR
+    rows.append(metrics)
+
+    # Per-stock predictions. Without these the pooled and VALUE-weighted Sharpes that GKX
+    # actually reports cannot be recovered after the run -- only re-derived by retraining.
+    # gkx_report.py consumes this file. (month_id is the FEATURE month t; the target is
+    # realized at t+1, so a market-cap join on month_id is the formation-date weight.)
+    pdir = os.path.join(OUTDIR, "predictions", "predictions.parquet")
+    pd.DataFrame({"permno": tp.astype(np.int64), "month_id": tm.astype(np.int64),
+                  "pred": ens.astype(np.float64), "target": tt.astype(np.float64),
+                  }).to_parquet(pdir, index=False)
+    log.info(f"wrote {pdir} ({len(tp)} stock-months)")
+
 out = os.path.join(OUTDIR, "metrics", "exp_summary.csv")
 pd.DataFrame(rows).to_csv(out, index=False)
 log.info(f"wrote {out} ({len(rows)} rows)")
